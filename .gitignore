@@ -18,3 +18,4 @@ GUI/outputs
 /.gitattributes
 secret.txt 
 secret_cluster.txt
+.venv
