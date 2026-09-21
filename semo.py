@@ -24,34 +24,34 @@ HISTORICAL_MEAN_HV = 271.28645227989284
 HISTORICAL_SOURCE = "logs/20260910_095825_Problem_MPaGE/population/pop_18.json"
 
 
-def select_neighbor(
-    archive: List[Tuple[np.ndarray, Tuple[float, float]]],
-    instance: np.ndarray,
-    distance_matrix_1: np.ndarray,
-    distance_matrix_2: np.ndarray,
-) -> np.ndarray:
-    """The exact heuristic associated with historical mean HV 271.286452."""
-    del instance, distance_matrix_1, distance_matrix_2
-    total_cost = sum(1 / (item[1][0] + item[1][1]) for item in archive)
-    selection_probs = [
-        (1 / (item[1][0] + item[1][1])) / total_cost for item in archive
-    ]
+def select_neighbor(archive: List[Tuple[np.ndarray, Tuple[float, float]]], instance: np.ndarray, distance_matrix_1: np.ndarray, distance_matrix_2: np.ndarray) -> np.ndarray:
+    import numpy as np
+    import random
+
+    # {The new algorithm first calculates a weighted score for each solution based on its objectives to select a solution with potential for improvement; then, it randomly selects a segment of the tour that includes a consecutive sequence of nodes and reverses that segment to explore a different configuration; subsequently, it computes a new objective value for the modified tour, ensuring that the new configuration remains a valid tour, and finally randomly perturbs the positions of a few other nodes in the tour to maintain diversity without violating the tour integrity.}
+
+    total_cost = sum(1 / (obj[1][0] + obj[1][1]) for obj in archive)
+    selection_probs = [(1 / (obj[1][0] + obj[1][1])) / total_cost for obj in archive]
     selected_index = np.random.choice(len(archive), p=selection_probs)
     selected_solution = archive[selected_index][0].copy()
 
     n = len(selected_solution)
-    segment_start = random.randint(0, n - 3)
-    segment_end = segment_start + random.randint(2, n - segment_start)
-    neighbor_solution = selected_solution.tolist()
-    neighbor_solution[segment_start:segment_end] = reversed(
-        neighbor_solution[segment_start:segment_end]
-    )
 
+    # Randomly select a segment of the tour (consecutive nodes)
+    segment_start = random.randint(0, n - 3)  # Ensure at least 3 nodes to reverse
+    segment_end = segment_start + random.randint(2, n - segment_start)  # At least 2 nodes in the segment
+
+    # Reverse the selected segment
+    neighbor_solution = selected_solution.tolist()
+    neighbor_solution[segment_start:segment_end] = reversed(neighbor_solution[segment_start:segment_end])
+
+    # Applying random perturbation to a few nodes
     perturbation_indices = random.sample(range(n), k=min(3, n))
-    for index in perturbation_indices:
-        perturbation = random.uniform(-0.5, 0.5)
-        neighbor_solution[index] = (neighbor_solution[index] + perturbation) % n
-    return np.asarray(neighbor_solution)
+    for idx in perturbation_indices:
+        perturbation = random.uniform(-0.5, 0.5)  # Slight adjustment
+        neighbor_solution[idx] = (neighbor_solution[idx] + perturbation) % n  # Ensure it's a valid node ID
+
+    return np.array(neighbor_solution)
 
 
 def check_constraint(solution: np.ndarray, problem_size: int) -> bool:
