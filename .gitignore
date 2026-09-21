@@ -7,6 +7,7 @@
 **/.vscode/
 **/*.log
 **/*.out
+*.json
 **/logs
 **/.idea
 **/samples*
