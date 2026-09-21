@@ -27,12 +27,18 @@ Chạy từ thư mục `MPaGE/reproduce bitsp20`:
 ```bash
 python nsga.py
 python moead.py
+python semo_strict.py
+python semo_loose.py
+python compare_hv2.py
+python compare_pipeline.py
 ```
 
 Kết quả mặc định:
 
 - `results/nsga_bi_tsp20.json`
 - `results/moead_bi_tsp20.json`
+- `results/hv_comparison_strict.json`
+- `results/hv_comparison_strict.csv`
 
 Có thể xem tất cả tham số bằng `python nsga.py --help` và `python moead.py --help`. Ví dụ đổi seed và file đầu ra:
 

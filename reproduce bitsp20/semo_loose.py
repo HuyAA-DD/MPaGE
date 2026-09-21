@@ -1,8 +1,8 @@
-"""Re-evaluate MPaGE's historical best-HV SEMO heuristic with strict TSP validity.
+"""Reproduce MPaGE's historical best-HV SEMO with its original loose checks.
 
-The embedded heuristic is the one whose MPaGE log reports historical mean HV
-271.28645227989284.  Unlike the original evaluator, this program accepts only
-integer permutations of all cities and never silently casts node IDs to int.
+Both ``select_neighbor`` and ``check_constraint`` are copied verbatim from
+their MPaGE sources. The original evaluator also converts node identifiers to
+``int`` only while calculating tour costs, so this file preserves that behavior.
 """
 
 from __future__ import annotations
@@ -17,6 +17,7 @@ from typing import List, Tuple
 
 import numpy as np
 from pymoo.indicators.hv import HV
+
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent
@@ -60,35 +61,50 @@ def select_neighbor(archive: List[Tuple[np.ndarray, Tuple[float, float]]], insta
     return np.array(neighbor_solution)
 
 
-def check_constraint(solution: np.ndarray, problem_size: int) -> bool:
-    """Accept exactly a one-dimensional integer permutation 0..n-1."""
-    candidate = np.asarray(solution)
-    return bool(
-        candidate.ndim == 1
-        and len(candidate) == problem_size
-        and np.issubdtype(candidate.dtype, np.integer)
-        and np.array_equal(np.sort(candidate), np.arange(problem_size))
-    )
+def tour_cost(instance, solution, problem_size):
+
+        cost_1 = 0
+        cost_2 = 0
+        
+        for j in range(problem_size - 1):
+            node1, node2 = int(solution[j]), int(solution[j + 1])
+            
+            coord_1_node1, coord_2_node1 = instance[node1][:2], instance[node1][2:]
+            coord_1_node2, coord_2_node2 = instance[node2][:2], instance[node2][2:]
+
+            cost_1 += np.linalg.norm(coord_1_node1 - coord_1_node2)
+            cost_2 += np.linalg.norm(coord_2_node1 - coord_2_node2)
+        
+        node_first, node_last = int(solution[0]), int(solution[-1])
+        
+        coord_1_first, coord_2_first = instance[node_first][:2], instance[node_first][2:]
+        coord_1_last, coord_2_last = instance[node_last][:2], instance[node_last][2:]
+
+        cost_1 += np.linalg.norm(coord_1_last - coord_1_first)
+        cost_2 += np.linalg.norm(coord_2_last - coord_2_first)
+
+        return cost_1, cost_2  
+    
+
+def dominates(a, b):
+        """True if a dominates b (minimization)."""
+        return all(x <= y for x, y in zip(a, b)) and any(x < y for x, y in zip(a, b))
+
+def random_solution(problem_size):
+        sol = list(range(problem_size))
+        random.shuffle(sol)
+        return np.array(sol)
 
 
-def tour_cost(
-    solution: np.ndarray, distances: tuple[np.ndarray, np.ndarray]
-) -> tuple[float, float]:
-    """Calculate a closed-tour cost without coercing node identifiers."""
-    if not check_constraint(solution, distances[0].shape[0]):
-        raise ValueError("tour_cost received a non-integer or incomplete TSP permutation")
-    following = np.roll(solution, -1)
-    return tuple(float(matrix[solution, following].sum()) for matrix in distances)
-
-
-def dominates(a: tuple[float, float], b: tuple[float, float]) -> bool:
-    return all(x <= y for x, y in zip(a, b)) and any(x < y for x, y in zip(a, b))
-
-
-def random_solution(problem_size: int) -> np.ndarray:
-    solution = list(range(problem_size))
-    random.shuffle(solution)
-    return np.asarray(solution, dtype=int)
+def check_constraint(solution, problem_size):
+    sol = list(solution)
+    if len(sol) != problem_size:
+        return False
+    if len(set(sol)) != problem_size:
+        return False
+    if not all(0 <= x < problem_size for x in solution):
+        return False
+    return True
 
 
 def pareto_indices(objectives: list[tuple[float, float]]) -> list[int]:
@@ -113,7 +129,7 @@ def solve_instance(
     random.seed(seed)
     np.random.seed(seed)
     tours = [random_solution(problem_size) for _ in range(initial_solutions)]
-    archive = [(tour, tour_cost(tour, distances)) for tour in tours]
+    archive = [(tour, tour_cost(instance, tour, problem_size)) for tour in tours]
     objective_evaluations = initial_solutions
     accepted_offspring = 0
     rejected_offspring = 0
@@ -124,7 +140,7 @@ def solve_instance(
         if not check_constraint(candidate, problem_size):
             rejected_offspring += 1
             continue
-        objective = tour_cost(candidate, distances)
+        objective = tour_cost(instance, candidate, problem_size)
         objective_evaluations += 1
         if not any(dominates(old_objective, objective) for _, old_objective in archive):
             archive = [
@@ -177,7 +193,7 @@ def run_benchmark(args: argparse.Namespace) -> dict:
         runs.append(run)
 
     result = {
-        "algorithm": "SEMO with MPaGE historical-best heuristic and strict feasibility",
+        "algorithm": "SEMO with original MPaGE loose feasibility",
         "problem": f"bi-TSP{args.cities}",
         "data_seed": 2025,
         "reference_point": reference_point.tolist(),
@@ -192,20 +208,20 @@ def run_benchmark(args: argparse.Namespace) -> dict:
 
     if args.nsga_results.exists() and args.moead_results.exists():
         nsga = load_baseline_hv(args.nsga_results, "NSGA-II")
-        moead = load_baseline_hv(args.moead_results, "MOEA/D")
+        moead_result = load_baseline_hv(args.moead_results, "MOEA/D")
         comparison = []
         for run in runs:
             index = run["instance"]
             values = {
-                "SEMO-strict": run["hypervolume"],
+                "SEMO-loose": run["hypervolume"],
                 "NSGA-II": nsga[index],
-                "MOEA/D": moead[index],
+                "MOEA/D": moead_result[index],
             }
             comparison.append({"instance": index, **values, "winner": max(values, key=values.get)})
         result["comparison"] = comparison
         mean_values = {
             name: float(np.mean([row[name] for row in comparison]))
-            for name in ("SEMO-strict", "NSGA-II", "MOEA/D")
+            for name in ("SEMO-loose", "NSGA-II", "MOEA/D")
         }
         result["comparison_mean"] = {
             **mean_values,
@@ -215,30 +231,14 @@ def run_benchmark(args: argparse.Namespace) -> dict:
 
 
 def print_results(result: dict) -> None:
-    comparison = result.get("comparison")
-    if comparison:
-        header = f"{'Instance':>8} | {'SEMO-strict':>12} | {'NSGA-II':>12} | {'MOEA/D':>12} | Winner"
-        print(header)
-        print("-" * len(header))
-        for row in comparison:
-            print(
-                f"{row['instance']:>8} | {row['SEMO-strict']:>12.6f} | "
-                f"{row['NSGA-II']:>12.6f} | {row['MOEA/D']:>12.6f} | {row['winner']}"
-            )
-        print("-" * len(header))
-        mean = result["comparison_mean"]
-        print(
-            f"{'Mean':>8} | {mean['SEMO-strict']:>12.6f} | "
-            f"{mean['NSGA-II']:>12.6f} | {mean['MOEA/D']:>12.6f} | {mean['winner']}"
-        )
     for run in result["instances"]:
         print(
             f"Instance {run['instance']}: accepted={run['accepted_offspring']}, "
             f"rejected={run['rejected_offspring']}, objective_evaluations="
             f"{run['objective_evaluations']}"
         )
-    print(f"Historical mean HV (loose evaluator): {HISTORICAL_MEAN_HV:.6f}")
-    print(f"Strict mean HV: {result['mean_hypervolume']:.6f}")
+    print(f"Historical mean HV (original evaluator): {HISTORICAL_MEAN_HV:.6f}")
+    print(f"Reproduced loose mean HV: {result['mean_hypervolume']:.6f}")
 
 
 def parse_args() -> argparse.Namespace:
@@ -256,7 +256,7 @@ def parse_args() -> argparse.Namespace:
         "--moead-results", type=Path, default=SCRIPT_DIR / "results" / "moead_bi_tsp20.json"
     )
     parser.add_argument(
-        "--output", type=Path, default=SCRIPT_DIR / "results" / "semo_bi_tsp20.json"
+        "--output", type=Path, default=SCRIPT_DIR / "results" / "semo_loose_bi_tsp20.json"
     )
     return parser.parse_args()
 
