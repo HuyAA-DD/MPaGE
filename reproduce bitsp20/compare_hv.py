@@ -13,11 +13,17 @@ import argparse
 import csv
 import json
 import random
+import sys
 from pathlib import Path
 from typing import Any, Callable, List, Tuple
 
 import numpy as np
 from pymoo.indicators.hv import HV
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SCRIPT_DIR.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from llm4ad.task.optimization.bi_tsp_semo.evaluation import (
     check_constraint,
@@ -296,14 +302,22 @@ def write_csv(path: Path, result: dict[str, Any]) -> None:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--mpage-log", type=Path, default=None, help="MPaGE run directory; default: latest")
-    parser.add_argument("--logs-dir", type=Path, default=Path("logs"))
-    parser.add_argument("--nsga", type=Path, default=Path("results/nsga_bi_tsp20.json"))
-    parser.add_argument("--moead", type=Path, default=Path("results/moead_bi_tsp20.json"))
+    parser.add_argument("--logs-dir", type=Path, default=PROJECT_ROOT / "logs")
+    parser.add_argument(
+        "--nsga", type=Path, default=SCRIPT_DIR / "results" / "nsga_bi_tsp20.json"
+    )
+    parser.add_argument(
+        "--moead", type=Path, default=SCRIPT_DIR / "results" / "moead_bi_tsp20.json"
+    )
     parser.add_argument("--seed", type=int, default=2025, help="Base seed for MPaGE re-evaluation")
     parser.add_argument("--initial-solutions", type=int, default=100)
     parser.add_argument("--iterations", type=int, default=2000)
-    parser.add_argument("--json-output", type=Path, default=Path("results/hv_comparison.json"))
-    parser.add_argument("--csv-output", type=Path, default=Path("results/hv_comparison.csv"))
+    parser.add_argument(
+        "--json-output", type=Path, default=SCRIPT_DIR / "results" / "hv_comparison.json"
+    )
+    parser.add_argument(
+        "--csv-output", type=Path, default=SCRIPT_DIR / "results" / "hv_comparison.csv"
+    )
     return parser.parse_args()
 
 

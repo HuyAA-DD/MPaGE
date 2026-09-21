@@ -6,8 +6,8 @@
     20.0
   ],
   "mpage": {
-    "log_directory": "logs\\20260910_095825_Problem_MPaGE",
-    "best_program_source": "logs\\20260910_095825_Problem_MPaGE\\population\\pop_18.json",
+    "log_directory": "..\\logs\\20260910_095825_Problem_MPaGE",
+    "best_program_source": "..\\logs\\20260910_095825_Problem_MPaGE\\population\\pop_18.json",
     "sample_order": null,
     "historical_score": [
       -271.28645227989284,

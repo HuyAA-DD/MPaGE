@@ -22,7 +22,7 @@ Mỗi chương trình ghi một file JSON chứa cấu hình, runtime, hypervolu
 
 ## Cách chạy
 
-Chạy từ thư mục `MPaGE`:
+Chạy từ thư mục `MPaGE/reproduce bitsp20`:
 
 ```bash
 python nsga.py

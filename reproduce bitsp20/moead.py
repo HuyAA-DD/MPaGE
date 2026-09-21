@@ -8,11 +8,17 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 import time
 from pathlib import Path
 
 import numpy as np
 from pymoo.indicators.hv import HV
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SCRIPT_DIR.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from llm4ad.task.optimization.bi_tsp_semo.get_instance import GetData
 from nsga import dominates, evaluate_tour, mutate, non_dominated_sort, order_crossover
@@ -175,7 +181,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-replacements", type=int, default=2)
     parser.add_argument("--mutation-probability", type=float, default=None)
     parser.add_argument("--reference-point", type=float, nargs=2, default=(20.0, 20.0))
-    parser.add_argument("--output", type=Path, default=Path("results/moead_bi_tsp20.json"))
+    parser.add_argument(
+        "--output", type=Path, default=SCRIPT_DIR / "results" / "moead_bi_tsp20.json"
+    )
     return parser.parse_args()
 
 

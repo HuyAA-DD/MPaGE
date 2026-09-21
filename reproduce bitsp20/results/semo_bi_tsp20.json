@@ -7,7 +7,7 @@
     20.0
   ],
   "historical_mean_hypervolume_from_original_evaluator": 271.28645227989284,
-  "historical_program_source": "logs/20260910_095825_Problem_MPaGE/population/pop_18.json",
+  "historical_program_source": "../logs/20260910_095825_Problem_MPaGE/population/pop_18.json",
   "initial_solutions": 100,
   "iterations": 2000,
   "instances": [

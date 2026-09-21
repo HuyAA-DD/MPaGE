@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import random
+import sys
 import time
 from pathlib import Path
 from typing import List, Tuple
@@ -17,11 +18,16 @@ from typing import List, Tuple
 import numpy as np
 from pymoo.indicators.hv import HV
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SCRIPT_DIR.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 from llm4ad.task.optimization.bi_tsp_semo.get_instance import GetData
 
 
 HISTORICAL_MEAN_HV = 271.28645227989284
-HISTORICAL_SOURCE = "logs/20260910_095825_Problem_MPaGE/population/pop_18.json"
+HISTORICAL_SOURCE = "../logs/20260910_095825_Problem_MPaGE/population/pop_18.json"
 
 
 def select_neighbor(archive: List[Tuple[np.ndarray, Tuple[float, float]]], instance: np.ndarray, distance_matrix_1: np.ndarray, distance_matrix_2: np.ndarray) -> np.ndarray:
@@ -243,9 +249,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--iterations", type=int, default=2000)
     parser.add_argument("--seed", type=int, default=2025)
     parser.add_argument("--reference-point", type=float, nargs=2, default=(20.0, 20.0))
-    parser.add_argument("--nsga-results", type=Path, default=Path("results/nsga_bi_tsp20.json"))
-    parser.add_argument("--moead-results", type=Path, default=Path("results/moead_bi_tsp20.json"))
-    parser.add_argument("--output", type=Path, default=Path("results/semo_bi_tsp20.json"))
+    parser.add_argument(
+        "--nsga-results", type=Path, default=SCRIPT_DIR / "results" / "nsga_bi_tsp20.json"
+    )
+    parser.add_argument(
+        "--moead-results", type=Path, default=SCRIPT_DIR / "results" / "moead_bi_tsp20.json"
+    )
+    parser.add_argument(
+        "--output", type=Path, default=SCRIPT_DIR / "results" / "semo_bi_tsp20.json"
+    )
     return parser.parse_args()
 
 
