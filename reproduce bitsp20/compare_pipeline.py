@@ -1,7 +1,7 @@
 """Repeat the bi-TSP20 HV comparison with multiple algorithm seeds.
 
 By default, this pipeline performs 10 complete runs. Each run evaluates
-NSGA-II, SEMO-strict, SEMO-loose, and MOEA/D on the same four deterministic
+NSGA-II, SEMO-strict, SEMO-loose, SEMO-2209, and MOEA/D on the same four deterministic
 problem instances using a distinct base seed. Hypervolume uses the original
 MPaGE reference point ``[20.0, 20.0]`` unless explicitly overridden.
 """
@@ -21,11 +21,12 @@ import compare_hv2
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-ALGORITHMS = ("NSGA-II", "SEMO-strict", "SEMO-loose", "MOEA/D")
+ALGORITHMS = ("NSGA-II", "SEMO-strict", "SEMO-loose", "SEMO-2209", "MOEA/D")
 MEAN_KEYS = {
     "NSGA-II": "nsga_hv",
     "SEMO-strict": "semo_strict_hv",
     "SEMO-loose": "semo_loose_hv",
+    "SEMO-2209": "semo2209_hv",
     "MOEA/D": "moead_hv",
 }
 
@@ -104,7 +105,7 @@ def run_pipeline(args: argparse.Namespace) -> dict:
 def print_run_table(result: dict) -> None:
     header = (
         f"{'Run':>4} | {'Seed':>8} | {'NSGA-II':>12} | {'SEMO-strict':>12} | "
-        f"{'SEMO-loose':>12} | {'MOEA/D':>12} | Winner"
+        f"{'SEMO-loose':>12} | {'SEMO-2209':>12} | {'MOEA/D':>12} | Winner"
     )
     print(header)
     print("-" * len(header))
@@ -113,7 +114,7 @@ def print_run_table(result: dict) -> None:
         print(
             f"{run['run']:>4} | {run['base_seed']:>8} | {hv['NSGA-II']:>12.6f} | "
             f"{hv['SEMO-strict']:>12.6f} | {hv['SEMO-loose']:>12.6f} | "
-            f"{hv['MOEA/D']:>12.6f} | {run['winner']}"
+            f"{hv['SEMO-2209']:>12.6f} | {hv['MOEA/D']:>12.6f} | {run['winner']}"
         )
 
     print("-" * len(header))
@@ -121,13 +122,14 @@ def print_run_table(result: dict) -> None:
     print(
         f"{'Mean':>4} | {'-':>8} | {means['NSGA-II']:>12.6f} | "
         f"{means['SEMO-strict']:>12.6f} | {means['SEMO-loose']:>12.6f} | "
-        f"{means['MOEA/D']:>12.6f} | {result['overall_winner_by_mean_hypervolume']}"
+        f"{means['SEMO-2209']:>12.6f} | {means['MOEA/D']:>12.6f} | "
+        f"{result['overall_winner_by_mean_hypervolume']}"
     )
     stds = {name: result["summary"][name]["sample_std_hypervolume"] for name in ALGORITHMS}
     print(
         f"{'Std':>4} | {'-':>8} | {stds['NSGA-II']:>12.6f} | "
         f"{stds['SEMO-strict']:>12.6f} | {stds['SEMO-loose']:>12.6f} | "
-        f"{stds['MOEA/D']:>12.6f} |"
+        f"{stds['SEMO-2209']:>12.6f} | {stds['MOEA/D']:>12.6f} |"
     )
 
 
@@ -139,6 +141,7 @@ def write_run_csv(path: Path, result: dict) -> None:
         "nsga_hv",
         "semo_strict_hv",
         "semo_loose_hv",
+        "semo2209_hv",
         "moead_hv",
         "winner",
     ]
@@ -154,6 +157,7 @@ def write_run_csv(path: Path, result: dict) -> None:
                     "nsga_hv": hv["NSGA-II"],
                     "semo_strict_hv": hv["SEMO-strict"],
                     "semo_loose_hv": hv["SEMO-loose"],
+                    "semo2209_hv": hv["SEMO-2209"],
                     "moead_hv": hv["MOEA/D"],
                     "winner": run["winner"],
                 }

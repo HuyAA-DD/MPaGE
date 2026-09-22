@@ -5,10 +5,23 @@ from ...base import LLM
 
 
 class HttpsApiOpenAI(LLM):
-    def __init__(self, base_url: str, api_key: str, model: str, timeout=30, **kwargs):
+    def __init__(
+        self,
+        base_url: str,
+        api_key: str,
+        model: str,
+        timeout=30,
+        temperature: float = 0.7,
+        max_tokens: int = 8192,
+        **kwargs,
+    ):
         super().__init__()
         self._model = model
-        self._client = openai.OpenAI(api_key=api_key, timeout=timeout, **kwargs)
+        self._temperature = temperature
+        self._max_tokens = max_tokens
+        self._client = openai.OpenAI(
+            api_key=api_key, base_url=base_url, timeout=timeout, **kwargs
+        )
 
     def draw_sample(self, prompt: str | Any, *args, **kwargs) -> str:
         try:
@@ -24,8 +37,8 @@ class HttpsApiOpenAI(LLM):
                 model=self._model,
                 messages=messages,
                 stream=False,
-                max_tokens=8192,
-                temperature=0.7
+                max_tokens=self._max_tokens,
+                temperature=self._temperature,
             )
             return response.choices[0].message.content
         except Exception as e:

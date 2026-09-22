@@ -13,7 +13,9 @@ class HttpsApiOpenAI4Cluster(LLM):
     def __init__(self, base_url: str, api_key: str, model: str, timeout=30, **kwargs):
         super().__init__()
         self._model = model
-        self._client = openai.OpenAI(api_key=api_key, timeout=timeout, **kwargs)
+        self._client = openai.OpenAI(
+            api_key=api_key, base_url=base_url, timeout=timeout, **kwargs
+        )
 
     def draw_sample(self, prompt: str | Any, *args, **kwargs) -> str:
         try:
@@ -24,13 +26,20 @@ class HttpsApiOpenAI4Cluster(LLM):
                 messages = prompt
             else:
                 raise ValueError("Unsupported prompt format")
-            print("Hi")
-            response = self._client.chat.completions.parse(
+            if '"Group"' in messages[-1]["content"]:
+                response = self._client.chat.completions.parse(
+                    model=self._model,
+                    messages=messages,
+                    response_format=Cluster,
+                )
+                return response.choices[0].message.parsed.Group
+
+            response = self._client.chat.completions.create(
                 model=self._model,
                 messages=messages,
-                response_format=Cluster,
+                stream=False,
             )
-            return response.choices[0].message.parsed.Group
+            return response.choices[0].message.content
         except Exception as e:
             print(f"Error in OpenAI API call: {e}")
             return None

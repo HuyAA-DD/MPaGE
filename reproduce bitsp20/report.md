@@ -21,6 +21,7 @@ Hai baseline dùng trực tiếp `GetData` của MPaGE, do đó chạy trên đ�
 - Population: 100; số thế hệ: 20.
 - Ngân sách mỗi instance: 100 nghiệm khởi tạo + 2.000 lần thử sinh nghiệm con. Với NSGA-II, MOEA/D và SEMO-loose, cấu hình hiện tại dẫn đến 2.100 lần tính objective. SEMO-strict có thể ít hơn vì candidate không hợp lệ bị loại trước khi tính objective.
 - Seed mặc định của thuật toán: `2025 + chỉ_số_instance`, giúp kết quả baseline tái lập được nhưng không làm các instance dùng cùng một chuỗi ngẫu nhiên.
+- Khi chạy lại MPaGE, evaluator dùng đúng 4 instance, 100 tour ban đầu, 2.000 offspring attempts và các seed `2025..2028` để khớp các JSON baseline hiện có. Population heuristic bên ngoài của MPaGE là một ngân sách thiết kế khác, đã được giảm còn 6 heuristic × 10 generations, tối đa 60 lần sinh/đánh giá heuristic để giảm chi phí API; con số 6 này không thay thế population 100 của bài toán TSP.
 
 Mỗi chương trình ghi một file JSON chứa cấu hình, runtime, hypervolume, kích thước Pareto front, objective vectors và tours của từng instance. Hypervolume dùng cùng `pymoo.indicators.hv.HV` như evaluator MPaGE.
 

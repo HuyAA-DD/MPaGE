@@ -1,6 +1,6 @@
-"""Compare NSGA-II, strict/loose SEMO, and MOEA/D HV on bi-TSP20.
+"""Compare NSGA-II, three SEMO variants, and MOEA/D HV on bi-TSP20.
 
-All four variants are rerun on the same deterministic problem instances.
+All five variants are rerun on the same deterministic problem instances.
 NSGA-II and MOEA/D candidates are guarded as strict integer permutations.
 The two SEMO variants use the constraint behavior implemented by their own
 ``semo_strict.py`` and ``semo_loose.py`` modules.
@@ -27,6 +27,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 import moead
 import nsga  # nsgaii.py is the compatibility entrypoint for this implementation.
+import semo2209
 import semo_loose
 import semo_strict
 from llm4ad.task.optimization.bi_tsp_semo.get_instance import GetData
@@ -207,6 +208,9 @@ def build_comparison(args: argparse.Namespace) -> dict:
             "SEMO-loose": run_semo(
                 semo_loose, "SEMO-loose", instance, distances, args, seed, False
             ),
+            "SEMO-2209": run_semo(
+                semo2209, "SEMO-2209", instance, distances, args, seed, True
+            ),
             "MOEA/D": run_moead(distances, args, seed),
         }
         values = {}
@@ -222,11 +226,13 @@ def build_comparison(args: argparse.Namespace) -> dict:
                 "nsga_hv": values["NSGA-II"],
                 "semo_strict_hv": values["SEMO-strict"],
                 "semo_loose_hv": values["SEMO-loose"],
+                "semo2209_hv": values["SEMO-2209"],
                 "moead_hv": values["MOEA/D"],
                 "winner": max(values, key=values.get),
                 "nsga_rejected": results["NSGA-II"]["rejected_candidates"],
                 "semo_strict_rejected": results["SEMO-strict"]["rejected_offspring"],
                 "semo_loose_rejected": results["SEMO-loose"]["rejected_offspring"],
+                "semo2209_rejected": results["SEMO-2209"]["rejected_offspring"],
                 "moead_rejected": results["MOEA/D"]["rejected_candidates"],
             }
         )
@@ -244,12 +250,14 @@ def build_comparison(args: argparse.Namespace) -> dict:
         "nsga_hv": float(np.mean([row["nsga_hv"] for row in rows])),
         "semo_strict_hv": float(np.mean([row["semo_strict_hv"] for row in rows])),
         "semo_loose_hv": float(np.mean([row["semo_loose_hv"] for row in rows])),
+        "semo2209_hv": float(np.mean([row["semo2209_hv"] for row in rows])),
         "moead_hv": float(np.mean([row["moead_hv"] for row in rows])),
     }
     winner_values = {
         "NSGA-II": mean["nsga_hv"],
         "SEMO-strict": mean["semo_strict_hv"],
         "SEMO-loose": mean["semo_loose_hv"],
+        "SEMO-2209": mean["semo2209_hv"],
         "MOEA/D": mean["moead_hv"],
     }
     mean["winner"] = max(winner_values, key=winner_values.get)
@@ -261,6 +269,7 @@ def build_comparison(args: argparse.Namespace) -> dict:
             "NSGA-II": "nsgaii.py compatibility entrypoint backed by nsga.py",
             "SEMO-strict": "semo_strict.py",
             "SEMO-loose": "semo_loose.py",
+            "SEMO-2209": "semo2209.py",
             "MOEA/D": "moead.py",
         },
         "reference_point": reference_point.tolist(),
@@ -282,7 +291,7 @@ def build_comparison(args: argparse.Namespace) -> dict:
 def print_table(result: dict) -> None:
     header = (
         f"{'Instance':>8} | {'NSGA-II':>12} | {'SEMO-strict':>12} | "
-        f"{'SEMO-loose':>12} | {'MOEA/D':>12} | Winner"
+        f"{'SEMO-loose':>12} | {'SEMO-2209':>12} | {'MOEA/D':>12} | Winner"
     )
     print(header)
     print("-" * len(header))
@@ -290,14 +299,14 @@ def print_table(result: dict) -> None:
         print(
             f"{row['instance']:>8} | {row['nsga_hv']:>12.6f} | "
             f"{row['semo_strict_hv']:>12.6f} | {row['semo_loose_hv']:>12.6f} | "
-            f"{row['moead_hv']:>12.6f} | {row['winner']}"
+            f"{row['semo2209_hv']:>12.6f} | {row['moead_hv']:>12.6f} | {row['winner']}"
         )
     mean = result["mean"]
     print("-" * len(header))
     print(
         f"{'Mean':>8} | {mean['nsga_hv']:>12.6f} | "
         f"{mean['semo_strict_hv']:>12.6f} | {mean['semo_loose_hv']:>12.6f} | "
-        f"{mean['moead_hv']:>12.6f} | {mean['winner']}"
+        f"{mean['semo2209_hv']:>12.6f} | {mean['moead_hv']:>12.6f} | {mean['winner']}"
     )
 
 
@@ -308,11 +317,13 @@ def write_csv(path: Path, result: dict) -> None:
         "nsga_hv",
         "semo_strict_hv",
         "semo_loose_hv",
+        "semo2209_hv",
         "moead_hv",
         "winner",
         "nsga_rejected",
         "semo_strict_rejected",
         "semo_loose_rejected",
+        "semo2209_rejected",
         "moead_rejected",
     ]
     path.parent.mkdir(parents=True, exist_ok=True)

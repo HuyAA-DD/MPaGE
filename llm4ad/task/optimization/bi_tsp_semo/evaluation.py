@@ -51,32 +51,46 @@ def random_solution(problem_size):
         return np.array(sol)
 
 
-def check_constraint(solution, problem_size):
-    sol = list(solution)
-    if len(sol) != problem_size:
+def check_constraint(solution: np.ndarray, problem_size: int) -> bool:
+    """Coerce node IDs to integers, then require a full permutation 0..n-1."""
+    try:
+        candidate = np.asarray(solution, dtype=int)
+    except (TypeError, ValueError, OverflowError):
         return False
-    if len(set(sol)) != problem_size:
-        return False
-    if not all(0 <= x < problem_size for x in solution):
-        return False
-    return True
+    return bool(
+        candidate.ndim == 1
+        and len(candidate) == problem_size
+        and np.array_equal(np.sort(candidate), np.arange(problem_size))
+    )
          
 
 
 
-def evaluate(instance_data, n_instance, problem_size, ref_point, eva: callable):
+def evaluate(
+        instance_data,
+        n_instance,
+        problem_size,
+        ref_point,
+        eva: callable,
+        initial_solutions=100,
+        iterations=2000,
+        algorithm_seed=2025,
+):
         obj_1 = np.ones(n_instance)
         obj_2 = np.ones(n_instance)
         n_ins = 0
         final_list = []
-        for _, (instance, distance_matrix_1, distance_matrix_2) in enumerate(instance_data):
+        for instance_index, (instance, distance_matrix_1, distance_matrix_2) in enumerate(instance_data):
+            random.seed(algorithm_seed + instance_index)
+            np.random.seed(algorithm_seed + instance_index)
             start = time.time()
-            s = [random_solution(problem_size) for _ in range(100)]
+            s = [random_solution(problem_size) for _ in range(initial_solutions)]
             Archive = [(s_, tour_cost(instance, s_, problem_size)) for s_ in s]
-            for _ in range(2000):
+            for _ in range(iterations):
                 s_prime = eva(Archive, instance, distance_matrix_1, distance_matrix_2)
                 if not check_constraint(s_prime, problem_size):
                     continue
+                s_prime = np.asarray(s_prime, dtype=int)
                 f_s_prime = tour_cost(instance, s_prime, problem_size)
 
                 # Nếu không bị thống trị
@@ -122,14 +136,27 @@ class BITSPEvaluation(Evaluation):
             timeout_seconds=60
         )
 
+        # Match the already generated NSGA-II/MOEA-D bi-TSP20 result files.
         self.n_instance = 4
         self.problem_size = 20
+        self.initial_solutions = 100
+        self.iterations = 2000
+        self.algorithm_seed = 2025
         getData = GetData(self.n_instance, self.problem_size)
         self._datasets = getData.generate_instances()
         self.ref_point = np.array([20.0, 20.0])
 
     def evaluate_program(self, program_str: str, callable_func: callable):
-        return evaluate(self._datasets,self.n_instance,self.problem_size, self.ref_point, callable_func)
+        return evaluate(
+            self._datasets,
+            self.n_instance,
+            self.problem_size,
+            self.ref_point,
+            callable_func,
+            self.initial_solutions,
+            self.iterations,
+            self.algorithm_seed,
+        )
     
 
 import numpy as np

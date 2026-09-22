@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import concurrent.futures
+import random
 import time
 import traceback
 from threading import Thread
@@ -32,6 +33,9 @@ class MPaGE:
                  use_m2_operator: bool = True,
                  num_samplers: int = 1,
                  num_evaluators: int = 1,
+                 pfg_segments: int = 4,
+                 selection_epsilon: float = 0.9,
+                 mutation_probability: float = 0.3,
                  *,
                  resume_mode: bool = False,
                  initial_sample_num: int | None = None,
@@ -69,11 +73,15 @@ class MPaGE:
         self._max_sample_nums = max_sample_nums
         self._pop_size = pop_size
         self._selection_num = selection_num
+        self._use_e1_operator = use_e1_operator
         self._use_e2_operator = use_e2_operator
         self._use_m1_operator = use_m1_operator
         self._use_m2_operator = use_m2_operator
         self._num_samplers = num_samplers
         self._num_evaluators = num_evaluators
+        self._pfg_segments = pfg_segments
+        self._selection_epsilon = selection_epsilon
+        self._mutation_probability = mutation_probability
         self._resume_mode = resume_mode
         self._initial_sample_num = initial_sample_num
         self._initial_sample_nums_max = initial_sample_nums_max
@@ -87,7 +95,17 @@ class MPaGE:
         self._template_program: Program = TextFunctionProgramConverter.text_to_program(self._template_program_str)
 
         # population, sampler, and evaluator
-        self._population = Population(pop_size=self._pop_size)
+        if not 0.0 <= self._selection_epsilon <= 1.0:
+            raise ValueError("selection_epsilon must be in [0, 1]")
+        if not 0.0 <= self._mutation_probability <= 1.0:
+            raise ValueError("mutation_probability must be in [0, 1]")
+        if self._pfg_segments < 2:
+            raise ValueError("pfg_segments must be at least 2")
+        self._population = Population(
+            pop_size=self._pop_size,
+            pfg_segments=self._pfg_segments,
+            selection_epsilon=self._selection_epsilon,
+        )
         llm.debug_mode = debug_mode
         self._sampler = EoHSampler(llm, self._template_program_str)
         self._cluster_sampler = EoHSampler(llm_cluster, self._template_program_str)
@@ -184,75 +202,79 @@ class MPaGE:
                     continue_until_reach_sample = True
             return continue_until_reach_gen and continue_until_reach_sample
 
+        crossover_prompts = []
+        if self._use_e1_operator:
+            crossover_prompts.append(EoHPrompt.get_prompt_e1)
+        if self._use_e2_operator:
+            crossover_prompts.append(EoHPrompt.get_prompt_e2)
+        mutation_prompts = []
+        if self._use_m1_operator:
+            mutation_prompts.append(EoHPrompt.get_prompt_m1)
+        if self._use_m2_operator:
+            mutation_prompts.append(EoHPrompt.get_prompt_m2)
+        if not crossover_prompts and not mutation_prompts:
+            raise ValueError("At least one crossover or mutation operator must be enabled")
+
         while continue_loop():
             try:
-                indivs = self._population.selection(self._selection_num)
-                if len(indivs) >= 3:
-                    prompt_cluster = EoHPrompt.get_prompt_cluster(self._task_description_str, indivs, self._function_to_evolve)
-                    group = self._cluster_sampler.get_thought(prompt_cluster)
-                    indivs = self._population.selection_cluster(group, indivs)
-                if self.review:
-                    prompt_suggestion = EoHPrompt.get_prompt_suggestions_only(self._task_description_str, indivs, self._function_to_evolve)
-                    prompt = EoHPrompt.get_prompt_e1(self._task_description_str, indivs, self._function_to_evolve, prompt_suggestion)
-                else:
-                    prompt = EoHPrompt.get_prompt_e1(self._task_description_str, indivs, self._function_to_evolve)
+                use_mutation = (
+                    bool(mutation_prompts)
+                    and (not crossover_prompts or random.random() < self._mutation_probability)
+                )
 
+                if use_mutation:
+                    candidates = self._population.selection(1)
+                    if not candidates:
+                        continue
+                    individual = random.choice(candidates)
+                    prompt_builder = random.choice(mutation_prompts)
+                    prompt = prompt_builder(
+                        self._task_description_str,
+                        individual,
+                        self._function_to_evolve,
+                    )
+                    if self.review:
+                        assessment_prompt = EoHPrompt.get_prompt_suggestions_only(
+                            self._task_description_str,
+                            [individual],
+                            self._function_to_evolve,
+                        )
+                        assessment = self._cluster_sampler.get_thought(assessment_prompt)
+                        prompt = f"Assessment from the reviewer:\n{assessment}\n\n{prompt}"
+                else:
+                    individuals = self._population.selection(self._selection_num)
+                    if len(individuals) < 2:
+                        continue
+                    if len(individuals) >= 3:
+                        cluster_prompt = EoHPrompt.get_prompt_cluster(
+                            self._task_description_str,
+                            individuals,
+                            self._function_to_evolve,
+                        )
+                        groups = self._cluster_sampler.get_thought(cluster_prompt)
+                        individuals = self._population.selection_cluster(groups, individuals)
+
+                    suggestions = None
+                    if self.review:
+                        assessment_prompt = EoHPrompt.get_prompt_suggestions_only(
+                            self._task_description_str,
+                            individuals,
+                            self._function_to_evolve,
+                        )
+                        suggestions = self._cluster_sampler.get_thought(assessment_prompt)
+                    prompt_builder = random.choice(crossover_prompts)
+                    prompt = prompt_builder(
+                        self._task_description_str,
+                        individuals,
+                        self._function_to_evolve,
+                        suggestions,
+                    )
 
                 if self._debug_mode:
                     print(prompt)
                     input()
 
                 self._sample_evaluate_register(prompt)
-                if not continue_loop():
-                    break
-
-
-                if self._use_e2_operator:
-                    indivs = self._population.selection(self._selection_num)
-                    if len(indivs) >= 3:
-                        prompt_cluster = EoHPrompt.get_prompt_cluster(self._task_description_str, indivs, self._function_to_evolve)
-                        group = self._cluster_sampler.get_thought(prompt_cluster)
-                        indivs = self._population.selection_cluster(group, indivs)
-                    if self.review:
-                        prompt_suggestion = EoHPrompt.get_prompt_suggestions_only(self._task_description_str, indivs, self._function_to_evolve)
-                        prompt = EoHPrompt.get_prompt_e2(self._task_description_str, indivs, self._function_to_evolve, prompt_suggestion)
-                    else:
-                        prompt = EoHPrompt.get_prompt_e2(self._task_description_str, indivs, self._function_to_evolve)
-
-                    if self._debug_mode:
-                        print(prompt)
-                        input()
-
-                    self._sample_evaluate_register(prompt)
-                    if not continue_loop():
-                        break
-
-
-                # get a new func using m1
-                if self._use_m1_operator:
-                    indiv = self._population.selection(1)
-                    prompt = EoHPrompt.get_prompt_m1(self._task_description_str, indiv, self._function_to_evolve)
-
-                    if self._debug_mode:
-                        print(prompt)
-                        input()
-
-                    self._sample_evaluate_register(prompt)
-                    if not continue_loop():
-                        break
-
-                # get a new func using m2
-                if self._use_m2_operator:
-                    indiv = self._population.selection(1)
-                    prompt = EoHPrompt.get_prompt_m2(self._task_description_str, indiv, self._function_to_evolve)
-
-                    if self._debug_mode:
-                        print(prompt)
-                        input()
-
-                    self._sample_evaluate_register(prompt)
-                    if not continue_loop():
-                        break
             except KeyboardInterrupt:
                 break
             except Exception as e:

@@ -140,7 +140,7 @@ def Generation_PFG(pop, GK, knee_point, nadir_point, sigma):
     return PFG
 
 
-def parent_selection(pop, m, GK = 4, sigma = 0.01, epsilon = 0.8):
+def parent_selection(pop, m, GK=4, sigma=0.01, epsilon=0.9):
     pop_ = deepcopy(pop)
     knee_point = cal_knee_point(pop_)
     nadir_point = cal_nadir_point(pop_)
@@ -177,7 +177,14 @@ def parent_selection(pop, m, GK = 4, sigma = 0.01, epsilon = 0.8):
 
 
 class Population:
-    def __init__(self, pop_size, generation=0, pop: List[Function] | Population | None = None):
+    def __init__(
+        self,
+        pop_size,
+        generation=0,
+        pop: List[Function] | Population | None = None,
+        pfg_segments=4,
+        selection_epsilon=0.9,
+    ):
         if pop is None:
             self._population = []
 
@@ -187,6 +194,8 @@ class Population:
             self._population = pop._population
 
         self._pop_size = pop_size
+        self._pfg_segments = pfg_segments
+        self._selection_epsilon = selection_epsilon
         self._lock = Lock()
         self._next_gen_pop = []
         self._generation = generation
@@ -243,7 +252,12 @@ class Population:
 
     def selection(self, selection_num) -> List[Function]:
         try:
-            return parent_selection(self._population, selection_num)
+            return parent_selection(
+                self._population,
+                selection_num,
+                GK=self._pfg_segments,
+                epsilon=self._selection_epsilon,
+            )
         except Exception as e:
             print(e)
             return []
@@ -282,6 +296,6 @@ class Population:
             
         except Exception as e:
             print(e)
-            return []
+            return random.sample(indivs, min(2, len(indivs)))
         
 
